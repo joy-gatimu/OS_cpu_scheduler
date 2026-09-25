@@ -513,7 +513,7 @@ HTML = """<!DOCTYPE html>
     <style>
         body {
             font-family: Arial, sans-serif;
-            background: #cfe9fb;
+            background: #dff3ff;
             margin: 0;
             padding: 30px;
         }
@@ -537,7 +537,7 @@ HTML = """<!DOCTYPE html>
             box-shadow: 0 2px 8px rgba(0,0,0,0.08);
         }
         .title-card {
-            background: linear-gradient(135deg, #4a90d9, #2f6fb0);
+            background: linear-gradient(135deg, #6bb6e8, #3f8fc7);
             text-align: center;
             padding: 30px 22px;
             margin-bottom: 25px;
@@ -1122,15 +1122,14 @@ def simulate():
 # ============================================================
 
 if __name__ == "__main__":
-
     print()
     print("=" * 60)
     print("CPU SCHEDULING SIMULATOR")
     print("=" * 60)
     print()
     print("Server starting...")
+    print("Open http://127.0.0.1:5000 in your browser.")
+    print("Press CTRL+C to stop the program.")
     print()
-
     port = int(os.environ.get("PORT", 5000))
-
-    app.run(host="0.0.0.0", port=port, debug=False)
+    app.run(host="127.0.0.1", port=port, debug=False)
