@@ -252,75 +252,193 @@ def sjf(original):
 
 
 def srtf(original, tie_breaker):
-
     processes = copy_processes(original)
 
+    # Sort processes by arrival time first
+    processes.sort(key=lambda p: (p.arrival, p.order))
+
+    import heapq
+
+    n = len(processes)
+    index = 0
+    completed = 0
     time = 0
 
-    completed = 0
+    # Priority queue for ready processes
+    ready = []
 
+    # Gantt chart
     gantt = []
 
-    while completed < len(processes):
+    current_pid = None
+    current_start = None
 
-        ready = [p for p in processes if p.arrival <= time and p.remaining > 0]
+    # --------------------------------------------------------
+    # DEFINE THE TIE-BREAKING RULE
+    # --------------------------------------------------------
+    def priority_key(p):
 
+        # SRTF + FCFS tie breaker
+        if tie_breaker == "FCFS":
+            return (
+                p.remaining,
+                p.arrival,
+                p.order,
+                p.order
+            )
+
+        # SRTF + High Integer = High Priority
+        elif tie_breaker == "High Integer = High Priority":
+            return (
+                p.remaining,
+                -p.priority,
+                p.arrival,
+                p.order
+            )
+
+        # SRTF + Low Integer = High Priority
+        else:
+            return (
+                p.remaining,
+                p.priority,
+                p.arrival,
+                p.order
+            )
+
+    # --------------------------------------------------------
+    # MAIN SRTF LOOP
+    # --------------------------------------------------------
+    while completed < n:
+
+        # ----------------------------------------------------
+        # IF CPU IS IDLE, MOVE TIME TO NEXT ARRIVING PROCESS
+        # ----------------------------------------------------
+        if not ready and index < n and time < processes[index].arrival:
+
+            if current_pid is not None:
+                gantt.append(
+                    (current_pid, current_start, time)
+                )
+
+                current_pid = None
+                current_start = None
+
+            gantt.append(
+                ("Idle", time, processes[index].arrival)
+            )
+
+            time = processes[index].arrival
+
+        # ----------------------------------------------------
+        # ADD ALL PROCESSES THAT HAVE ARRIVED
+        # ----------------------------------------------------
+        while index < n and processes[index].arrival <= time:
+
+            p = processes[index]
+
+            heapq.heappush(
+                ready,
+                (*priority_key(p), p)
+            )
+
+            index += 1
+
+        # ----------------------------------------------------
+        # IF NOTHING IS READY, CONTINUE
+        # ----------------------------------------------------
         if not ready:
-
-            future = [p for p in processes if p.remaining > 0]
-
-            next_arrival = min(p.arrival for p in future)
-
-            gantt.append(("Idle", time, next_arrival))
-
-            time = next_arrival
-
             continue
 
         # ----------------------------------------------------
-        # FCFS TIE BREAKER
+        # SELECT PROCESS ACCORDING TO SRTF + TIE BREAKER
         # ----------------------------------------------------
-
-        if tie_breaker == "FCFS":
-
-            process = min(ready, key=lambda p: (p.remaining, p.arrival, p.order))
+        _, _, _, _, process = heapq.heappop(ready)
 
         # ----------------------------------------------------
-        # HIGH INTEGER = HIGH PRIORITY
+        # START A NEW GANTT SEGMENT IF PROCESS CHANGES
         # ----------------------------------------------------
+        if current_pid != process.pid:
 
-        elif tie_breaker == "High Integer = High Priority":
+            if current_pid is not None:
+                gantt.append(
+                    (current_pid, current_start, time)
+                )
 
-            process = min(
-                ready, key=lambda p: (p.remaining, -p.priority, p.arrival, p.order)
+            current_pid = process.pid
+            current_start = time
+
+        # ----------------------------------------------------
+        # FIND WHEN CURRENT PROCESS WOULD FINISH
+        # ----------------------------------------------------
+        finish_time = time + process.remaining
+
+        # ----------------------------------------------------
+        # CHECK IF ANOTHER PROCESS ARRIVES BEFORE COMPLETION
+        # ----------------------------------------------------
+        if index < n:
+
+            next_arrival = processes[index].arrival
+
+            run_until = min(
+                finish_time,
+                next_arrival
             )
-
-        # ----------------------------------------------------
-        # LOW INTEGER = HIGH PRIORITY
-        # ----------------------------------------------------
 
         else:
+            run_until = finish_time
 
-            process = min(
-                ready, key=lambda p: (p.remaining, p.priority, p.arrival, p.order)
+        # ----------------------------------------------------
+        # EXECUTE THE PROCESS
+        # ----------------------------------------------------
+        execution = run_until - time
+
+        process.remaining -= execution
+
+        time = run_until
+
+        # ----------------------------------------------------
+        # ADD ANY NEWLY ARRIVED PROCESSES
+        # ----------------------------------------------------
+        while index < n and processes[index].arrival <= time:
+
+            p = processes[index]
+
+            heapq.heappush(
+                ready,
+                (*priority_key(p), p)
             )
 
-        start = time
+            index += 1
 
-        process.remaining -= 1
-
-        time += 1
-
-        gantt.append((process.pid, start, time))
-
+        # ----------------------------------------------------
+        # PROCESS FINISHED
+        # ----------------------------------------------------
         if process.remaining == 0:
 
             process.completion = time
 
             completed += 1
 
-    return processes, merge_gantt(gantt)
+            gantt.append(
+                (process.pid, current_start, time)
+            )
 
+            current_pid = None
+            current_start = None
+
+        # ----------------------------------------------------
+        # PROCESS WAS PREEMPTED
+        # ----------------------------------------------------
+        else:
+
+            heapq.heappush(
+                ready,
+                (*priority_key(process), process)
+            )
+
+            current_pid = process.pid
+
+    return processes, merge_gantt(gantt)
 
 # ============================================================
 # ROUND ROBIN
